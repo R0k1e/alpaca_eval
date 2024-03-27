@@ -135,6 +135,7 @@ def ranking_parser(completion: str, model_1_name: str = "model_1") -> list[Any]:
     """
     try:
         if isinstance(completion, str):
+            completion = completion.replace('```python', '').replace('```', '').replace('\n', "").replace(" ", "")
             ordered_completions = ast.literal_eval(completion)
         else:
             ordered_completions = completion
