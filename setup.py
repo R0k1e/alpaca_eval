@@ -34,9 +34,8 @@ PACKAGES_LOCAL = [
     "vllm",
 ]
 PACKAGES_ALL_API = [
-    "anthropic>=0.3.3",
-    "huggingface_hub>=0.2",
-    "cohere",
+    "anthropic>=0.18",
+    "cohere<5.0.0a0",
     "replicate",
     "boto3>=1.28.58",
     "google-generativeai",
@@ -50,7 +49,18 @@ setuptools.setup(
     package_dir={"": "src"},
     packages=setuptools.find_packages("src"),
     author="The Alpaca Team",
-    install_requires=["python-dotenv", "datasets", "openai>=1.5.0", "pandas", "tiktoken>=0.3.2", "fire", "scipy"],
+    install_requires=[
+        "python-dotenv",
+        "datasets",
+        "openai>=1.5.0",
+        "pandas",
+        "tiktoken>=0.3.2",
+        "fire",
+        "scipy",
+        "huggingface_hub",
+        "patsy",
+        "scikit-learn",
+    ],
     extras_require={
         "analysis": PACKAGES_ANALYSIS,
         "dev": PACKAGES_DEV,

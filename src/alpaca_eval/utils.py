@@ -394,7 +394,7 @@ def get_precomputed_leaderboard(precomputed_leaderboard, reference_outputs, anno
     return leaderboard, precomputed_leaderboard
 
 
-def get_output_path(output_path, model_outputs, name, dflt_dir="results"):
+def get_output_path(output_path, model_outputs, name, dflt_dir="results", annotators_config=None):
     if output_path == "auto":
         if model_outputs is None:
             output_path = None
@@ -413,27 +413,41 @@ def get_output_path(output_path, model_outputs, name, dflt_dir="results"):
     if output_path is not None:
         output_path = Path(output_path)
         output_path.mkdir(exist_ok=True, parents=True)
+
+        if isinstance(annotators_config, str) and "/" not in annotators_config:
+            output_path = Path(output_path) / annotators_config
+            output_path.mkdir(exist_ok=True, parents=True)
+
     return output_path
 
 
-def print_leaderboard(df_leaderboard, leaderboard_mode, cols_to_print, current_name=None):
+def print_leaderboard(df_leaderboard, leaderboard_mode_or_models, cols_to_print, current_name=None):
     cols_to_print = list(cols_to_print)
+    # make sure no duplicates and keep in order
+    cols_to_print = list(dict.fromkeys(cols_to_print))
 
-    if leaderboard_mode is not None:
+    if isinstance(leaderboard_mode_or_models, str):
         if "mode" in df_leaderboard.columns:
             # select all modes that come before
-            current_idx = constants.ORDERED_LEADERBOARD_MODES.index(leaderboard_mode)
+            current_idx = constants.ORDERED_LEADERBOARD_MODES.index(leaderboard_mode_or_models)
             df_leaderboard["mode_idx"] = df_leaderboard["mode"].apply(constants.ORDERED_LEADERBOARD_MODES.index)
 
             is_smaller_mode = df_leaderboard["mode_idx"] <= current_idx
             is_selected = is_smaller_mode | (df_leaderboard["mode"].isnull())
 
-            if current_name is not None:
-                is_selected |= df_leaderboard.index == current_name
+    elif isinstance(leaderboard_mode_or_models, Sequence):
+        # check the index of the models
+        is_selected = df_leaderboard.index.isin(leaderboard_mode_or_models)
 
-            df_leaderboard = df_leaderboard[is_selected]
     elif "mode" in df_leaderboard.columns:
         cols_to_print = cols_to_print + ["mode"]
+        is_selected = [True] * len(df_leaderboard)
+
+    if current_name is not None:
+        is_selected |= df_leaderboard.index == current_name
+
+    df_leaderboard = df_leaderboard[is_selected]
+
     print(df_leaderboard[cols_to_print].to_string(float_format="%.2f"))
 
 
@@ -571,3 +585,66 @@ def import_class(full_class_string):
     cls = getattr(module, class_name)
 
     return cls
+
+
+def prompt_to_chatml(prompt: str, start_token: str = "<|im_start|>", end_token: str = "<|im_end|>"):
+    r"""Convert a text prompt to ChatML formal
+
+    Examples
+    --------
+    >>> prompt = (
+    ... "<|im_start|>system\n"
+    ... "You are a helpful assistant.\n<|im_end|>\n"
+    ... "<|im_start|>system name=example_user\nKnock knock.\n<|im_end|>\n<|im_start|>system name=example_assistant\n"
+    ... "Who's there?\n<|im_end|>\n<|im_start|>user\nOrange.\n<|im_end|>"
+    ... )
+    >>> print(prompt)
+    <|im_start|>system
+    You are a helpful assistant.
+    <|im_end|>
+    <|im_start|>system name=example_user
+    Knock knock.
+    <|im_end|>
+    <|im_start|>system name=example_assistant
+    Who's there?
+    <|im_end|>
+    <|im_start|>user
+    Orange.
+    <|im_end|>
+    >>> prompt_to_chatml(prompt)
+    [{'content': 'You are a helpful assistant.', 'role': 'system'},
+      {'content': 'Knock knock.', 'role': 'system', 'name': 'example_user'},
+      {'content': "Who's there?", 'role': 'system', 'name': 'example_assistant'},
+      {'content': 'Orange.', 'role': 'user'}]
+    """
+    prompt = prompt.strip()
+    assert prompt.startswith(start_token)
+    assert prompt.endswith(end_token)
+
+    message = []
+    for p in prompt.split("<|im_start|>")[1:]:
+        newline_splitted = p.split("\n", 1)
+        role = newline_splitted[0].strip()
+        content = newline_splitted[1].split(end_token, 1)[0].strip()
+
+        if role.startswith("system") and role != "system":
+            # based on https://github.com/openai/openai-cookbook/blob/main/examples
+            # /How_to_format_inputs_to_ChatGPT_models.ipynb
+            # and https://github.com/openai/openai-python/blob/main/chatml.md it seems that system can specify a
+            # dictionary of other args
+            other_params = _string_to_dict(role.split("system", 1)[-1])
+            role = "system"
+        else:
+            other_params = dict()
+
+        message.append(dict(content=content, role=role, **other_params))
+
+    return message
+
+
+def _string_to_dict(to_convert):
+    r"""Converts a string with equal signs to dictionary. E.g.
+    >>> _string_to_dict(" name=user university=stanford")
+    {'name': 'user', 'university': 'stanford'}
+    """
+    return {s.split("=", 1)[0]: s.split("=", 1)[1] for s in to_convert.split(" ") if len(s) > 0}

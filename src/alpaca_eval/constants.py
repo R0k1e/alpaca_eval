@@ -5,6 +5,7 @@ from functools import partial
 from pathlib import Path
 
 import datasets
+from huggingface_hub import hf_hub_download
 
 CURRENT_DIR = Path(__file__).parent
 BASE_DIR = Path(__file__).parents[2]
@@ -24,7 +25,7 @@ if isinstance(OPENAI_ORGANIZATION_IDS, str):
 #
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", None)
-ANTHROPIC_MAX_CONCURRENCY = int(os.environ.get("ANTHROPIC_MAX_CONCURRENCY", API_MAX_CONCURRENCY))
+ANTHROPIC_MAX_CONCURRENCY = int(os.environ.get("ANTHROPIC_MAX_CONCURRENCY", 4))
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", None)
 
@@ -73,7 +74,7 @@ VERIFIED_EVALUATORS = tuple(
 )
 
 # order matters i => i+1 when filtering
-ORDERED_LEADERBOARD_MODES = ["minimal", "verified", "community"]
+ORDERED_LEADERBOARD_MODES = ["minimal", "verified", "community", "dev"]
 
 
 def get_alpaca_eval_data(dataset="alpaca_eval_gpt4_baseline"):
@@ -91,6 +92,19 @@ ALPACAEVAL_REFERENCE_OUTPUTS_2 = get_alpaca_eval_data
 ALPACAEVAL_REFERENCE_OUTPUTS_1 = partial(get_alpaca_eval_data, dataset="alpaca_eval")
 
 ALPACAEVAL_REFERENCE_OUTPUTS = ALPACAEVAL_REFERENCE_OUTPUTS_2 if IS_ALPACA_EVAL_2 else ALPACAEVAL_REFERENCE_OUTPUTS_1
+
+
+def ALPACAEVAL_INSTRUCTION_PARAMETERS():
+    out = hf_hub_download(
+        repo_id="tatsu-lab/alpaca_eval",
+        filename="instruction_difficulty.csv",
+        repo_type="dataset",
+        force_download=DATASETS_FORCE_DOWNLOAD,
+        cache_dir=DEFAULT_CACHE_DIR,
+        token=DATASETS_TOKEN,
+    )
+    pd.read_csv(out, index_col=0).squeeze()
+    return df
 
 
 def ALPACAFARM_GOLD_CROSSANNOTATIONS():
@@ -137,6 +151,12 @@ PRECOMPUTED_LEADERBOARDS = {
     / f"{ANNOTATOR_CONFIG_AE2}_leaderboard.csv",
     (str(ALPACAEVAL_REFERENCE_OUTPUTS_2), "weighted_alpaca_eval_gpt4_turbo"): ALPACAEVAL_2_LEADERBOARD_PATHS
     / f"weighted_alpaca_eval_gpt4_turbo_leaderboard.csv",
+    (str(ALPACAEVAL_REFERENCE_OUTPUTS_2), "mistral-large-2402_ranking"): ALPACAEVAL_2_LEADERBOARD_PATHS
+    / f"mistral-large-2402_ranking_leaderboard.csv",
+    (str(ALPACAEVAL_REFERENCE_OUTPUTS_2), "claude_3_opus_ranking"): ALPACAEVAL_2_LEADERBOARD_PATHS
+    / f"claude_3_opus_ranking_leaderboard.csv",
+    # (str(ALPACAEVAL_REFERENCE_OUTPUTS_2), "gpt-3.5-turbo-1106_ranking"): ALPACAEVAL_2_LEADERBOARD_PATHS
+    # / f"gpt-3.5-turbo-1106_ranking_leaderboard.csv",
     # (str(ALPACAEVAL_REFERENCE_OUTPUTS_2), "alpaca_eval_cot_gpt4_turbo_fn"): ALPACAEVAL_2_LEADERBOARD_PATHS
     # / f"alpaca_eval_cot_gpt4_turbo_fn_leaderboard.csv",
 }
@@ -188,20 +208,6 @@ MINIMAL_MODELS_FOR_NEW_LEADERBOARD = [
     "alpaca-7b",
 ]
 
-# maps models to Arena Elo rating
-CHATBOT_ARENA_LEADERBOARD = {
-    "gpt4_turbo": 1243,
-    "gpt4": 1192,
-    "tulu-2-dpo-70b": 1110,
-    "Yi-34B-Chat": 1110,
-    "llama-2-70b-chat-hf": 1077,
-    "claude-2.1": 1117,
-    "chatgpt": 1074,
-    "gemini-pro": 1111,
-    "Mixtral-8x7B-Instruct-v0.1": 1121,
-    "Mistral-7B-Instruct-v0.2": 1023,
-    "vicuna-33b-v1.3": 1095,
-}
 
 EVALUATORS_LEADERBOARD_COLS_TO_PRINT = EVALUATORS_LEADERBOARD_COLS_TO_PRIORITIZE[:8]
 
