@@ -215,9 +215,10 @@ def _get_featurized_data(
     )
     df_gamed = pd.read_csv(out).drop(columns=["model"])
     instruction_difficulty = df_gamed.drop_duplicates("index")["instruction_difficulty"]
+    idx = instruction_difficulty.index
 
     # 2. add features necessary for the glm
-    df = df_annotations.reset_index()
+    df = df_annotations.reset_index().loc[idx]
     len_1 = df["output_1"].str.len()
     len_2 = df["output_2"].str.len()
     std_delta_len = len_1 - len_2
